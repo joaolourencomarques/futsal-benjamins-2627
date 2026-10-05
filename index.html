@@ -55,7 +55,10 @@ th,td{padding:6px;border-bottom:1px solid #eee6b8;font-size:13px;text-align:left
 .radio-row{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin:0}
 .radio-row label{font-weight:400;font-size:13px;display:flex;align-items:center;gap:4px;white-space:nowrap}
 #radarPicker label{font-weight:400;font-size:13px;display:flex;align-items:center;gap:4px;white-space:nowrap;border:1px solid var(--line);border-radius:999px;padding:3px 10px;background:#fffdf0}
+#radarPicker label:has(input:checked){background:var(--y);border-color:#111;font-weight:700}
 canvas{width:100%!important;height:300px!important}
+#chartRadar{height:430px!important}
+#chartEventsTimeline{height:400px!important}
 .header{display:flex;align-items:center;gap:18px;margin:6px 0 14px}
 .logo{width:clamp(56px,9vw,88px);height:clamp(56px,9vw,88px);object-fit:contain}
 #modal{display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);align-items:center;justify-content:center;z-index:9999}
@@ -217,7 +220,7 @@ canvas{width:100%!important;height:300px!important}
   <div class="section-title">8. Análise avançada de eventos</div>
 
   <div class="subhead">
-    <strong>Comparar jogadores (radar) — escolhe até 4</strong>
+    <strong>Comparar jogadores (radar) — escolhe até 10</strong>
   </div>
   <div id="radarPicker" class="row" style="margin-top:6px"></div>
   <div class="chart-card" style="margin-top:8px"><canvas id="chartRadar"></canvas></div>
@@ -496,10 +499,36 @@ function updTimes(){
  document.querySelectorAll('.onFieldPartialTime').forEach(el=>el.textContent=fmt(stintSec(+el.dataset.player)));
 }
 function currentAbsMin(){const pm=session.partMin||20;return session.currentPart===2?pm+Math.floor(partElapsed(2)/60):Math.floor(partElapsed(1)/60)}
-const EV_CATS=['Desconto de tempo / Pausa','Defesa do GR','Faltas','Recuperações/Perdas','Remates','Golos','Entradas/Saídas'];
-const EV_CAT_OF={ENT:'Entradas/Saídas',SAI:'Entradas/Saídas',GOL:'Golos',GOS:'Golos',RAB:'Remates',RFB:'Remates',REC:'Recuperações/Perdas',PER:'Recuperações/Perdas',FCO:'Faltas',FSO:'Faltas',DEF:'Defesa do GR',DT:'Desconto de tempo / Pausa'};
-const EV_DOT_COLORS={ENT:'#3d85d8',SAI:'#f4a93b',GOL:'#2a9d8f',GOS:'#d62828',RAB:'#2fb6c4',RFB:'#b9c4cf',DEF:'#0f766e',REC:'#9b6fd6',PER:'#8a5a3b',FSO:'#8fd694',FCO:'#e58fc2',DT:'#8c8c8c'};
-const RADAR_COLORS=['#1f6fd1','#d62828','#2a9d8f','#8a6d00'];
+const EV_CATS=['Entradas/Saídas','Golos','Remates','Recuperações/Perdas','Faltas','Defesa do GR','Desconto de tempo / Pausa'];
+const EV_CAT_OF={ENT:'Entradas/Saídas',SAI:'Entradas/Saídas',GOL:'Golos',GOS:'Golos',RAB:'Remates',RFB:'Remates',RSO:'Remates',REC:'Recuperações/Perdas',PER:'Recuperações/Perdas',FCO:'Faltas',FSO:'Faltas',DEF:'Defesa do GR',DT:'Desconto de tempo / Pausa'};
+const TIMELINE_CODES=['ENT','SAI','GOL','GOS','RAB','RFB','RSO','REC','PER','FCO','FSO','DEF','DT'];
+const TIMELINE_STYLE={
+ ENT:{label:'Entrada',bg:'#FFD400',border:'#111111',pointStyle:'triangle',rotation:0},
+ SAI:{label:'Saída',bg:'#111111',border:'#111111',pointStyle:'rectRot',rotation:0},
+ GOL:{label:'Golo marcado',bg:'#FFD400',border:'#111111',pointStyle:'circle',rotation:0},
+ GOS:{label:'Golo sofrido',bg:'#111111',border:'#111111',pointStyle:'circle',rotation:0},
+ RAB:{label:'Remate à baliza',bg:'#FFD400',border:'#111111',pointStyle:'circle',rotation:0},
+ RFB:{label:'Remate fora',bg:'#FFFFFF',border:'#111111',pointStyle:'circle',rotation:0},
+ RSO:{label:'Remate sofrido',bg:'#111111',border:'#111111',pointStyle:'triangle',rotation:180},
+ REC:{label:'Recuperação',bg:'#FFD400',border:'#111111',pointStyle:'rectRounded',rotation:0},
+ PER:{label:'Perda',bg:'#111111',border:'#111111',pointStyle:'rectRounded',rotation:0},
+ FCO:{label:'Falta cometida',bg:'#111111',border:'#111111',pointStyle:'rectRot',rotation:0},
+ FSO:{label:'Falta sofrida',bg:'#FFD400',border:'#111111',pointStyle:'rectRot',rotation:0},
+ DEF:{label:'Defesa do GR',bg:'#FFD400',border:'#111111',pointStyle:'star',rotation:0},
+ DT:{label:'Pausa / desconto de tempo',bg:'#FFFFFF',border:'#111111',pointStyle:'crossRot',rotation:0}
+};
+const RADAR_STYLES=[
+ {line:'#FFD400',fill:'rgba(255,212,0,.12)',point:'#FFD400',dash:[]},
+ {line:'#111111',fill:'rgba(17,17,17,.06)',point:'#111111',dash:[]},
+ {line:'#C7A600',fill:'rgba(199,166,0,.09)',point:'#C7A600',dash:[8,3]},
+ {line:'#555555',fill:'rgba(85,85,85,.06)',point:'#555555',dash:[8,3]},
+ {line:'#FFE66A',fill:'rgba(255,230,106,.12)',point:'#FFE66A',dash:[3,3]},
+ {line:'#333333',fill:'rgba(51,51,51,.05)',point:'#333333',dash:[3,3]},
+ {line:'#E6C200',fill:'rgba(230,194,0,.09)',point:'#E6C200',dash:[12,3]},
+ {line:'#888888',fill:'rgba(136,136,136,.05)',point:'#888888',dash:[12,3]},
+ {line:'#FFF1A8',fill:'rgba(255,241,168,.14)',point:'#FFF1A8',dash:[6,2,2,2]},
+ {line:'#7A6500',fill:'rgba(122,101,0,.07)',point:'#7A6500',dash:[2,2]}
+];
 let radarSel=new Set();
 
 const halfTimeLinePlugin={
@@ -507,8 +536,8 @@ const halfTimeLinePlugin={
  afterDraw(chart){
   const{ctx,chartArea:{top,bottom},scales:{x}}=chart,pm=session.partMin||20;
   const xp=x.getPixelForValue(pm);
-  ctx.save();ctx.strokeStyle='#999';ctx.setLineDash([4,4]);ctx.beginPath();ctx.moveTo(xp,top);ctx.lineTo(xp,bottom);ctx.stroke();ctx.setLineDash([]);
-  ctx.fillStyle='#555';ctx.font='11px Inter,Arial,sans-serif';ctx.textAlign='center';ctx.textBaseline='top';
+  ctx.save();ctx.strokeStyle='#111';ctx.lineWidth=2;ctx.setLineDash([5,4]);ctx.beginPath();ctx.moveTo(xp,top);ctx.lineTo(xp,bottom);ctx.stroke();ctx.setLineDash([]);
+  ctx.fillStyle='#111';ctx.font='11px Inter,Arial,sans-serif';ctx.textAlign='center';ctx.textBaseline='top';
   ctx.fillText('1ª Parte',(x.getPixelForValue(0)+xp)/2,top+2);
   ctx.fillText('2ª Parte',(xp+x.getPixelForValue(x.max))/2,top+2);
   ctx.restore();
@@ -533,12 +562,24 @@ function initCharts(){
   scales:{x:{min:0,title:{display:true,text:'Minuto'}},y:{stacked:true,ticks:{font:{size:10}}}}}});
 
  charts.radar=new Chart($('chartRadar'),{type:'radar',data:{labels:['Golos','Assist.','RAB','RFB','REC','PER','FCO','FSO','DEF'],datasets:[]},
-  options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:true}},scales:{r:{beginAtZero:true,ticks:{precision:0}}}}});
+  options:{responsive:true,maintainAspectRatio:false,
+   plugins:{
+    legend:{display:true,position:'bottom',labels:{usePointStyle:true,boxWidth:10,padding:14,color:'#111',font:{size:11}}},
+    title:{display:true,text:'Comparação de jogadores',color:'#111',font:{size:14,weight:'bold'}}
+   },
+   scales:{r:{beginAtZero:true,angleLines:{color:'rgba(17,17,17,.16)'},grid:{color:'rgba(255,212,0,.35)'},pointLabels:{color:'#111',font:{size:11,weight:'bold'}},ticks:{precision:0,color:'#111',backdropColor:'#fff9cc'}}}}});
 
  charts.evTimeline=new Chart($('chartEventsTimeline'),{type:'scatter',data:{datasets:[]},
   options:{responsive:true,maintainAspectRatio:false,
-   plugins:{legend:{position:'bottom',labels:{boxWidth:10,font:{size:10}}},tooltip:{callbacks:{label:c=>`${c.dataset.label} — ${c.parsed.x}'`}}},
-   scales:{x:{type:'linear',min:0,title:{display:true,text:'Minuto'}},y:{type:'category',labels:EV_CATS,offset:true}}},
+   plugins:{
+    legend:{position:'bottom',labels:{usePointStyle:true,boxWidth:10,padding:12,color:'#111',font:{size:10}}},
+    title:{display:true,text:'Eventos ao longo do jogo',color:'#111',font:{size:14,weight:'bold'}},
+    tooltip:{callbacks:{label:c=>`${c.dataset.label} — ${c.parsed.x}'`}}
+   },
+   scales:{
+    x:{type:'linear',min:0,title:{display:true,text:'Minuto',color:'#111',font:{weight:'bold'}},ticks:{color:'#111'},grid:{color:'rgba(17,17,17,.08)'}},
+    y:{type:'category',labels:EV_CATS,offset:true,ticks:{color:'#111',font:{size:11,weight:'bold'}},grid:{color:'rgba(255,212,0,.28)'}}
+   }},
   plugins:[halfTimeLinePlugin]});
 }
 
@@ -572,16 +613,32 @@ function updateRadar(){
  if(!charts.radar)return;
  charts.radar.data.datasets=[...radarSel].map((n,i)=>{
   const p=ROSTER.find(r=>r.number===n)||{number:n,name:'?'};
-  return{label:p.number+' '+p.name,data:[count(n,'GOL'),count(n,'ASS'),count(n,'RAB'),count(n,'RFB'),count(n,'REC'),count(n,'PER'),count(n,'FCO'),count(n,'FSO'),count(n,'DEF')],
-   borderColor:RADAR_COLORS[i%4],backgroundColor:RADAR_COLORS[i%4]+'33',pointBackgroundColor:RADAR_COLORS[i%4]};
+  const s=RADAR_STYLES[i%RADAR_STYLES.length];
+  return{
+   label:p.number+' '+p.name,
+   data:[count(n,'GOL'),count(n,'ASS'),count(n,'RAB'),count(n,'RFB'),count(n,'REC'),count(n,'PER'),count(n,'FCO'),count(n,'FSO'),count(n,'DEF')],
+   borderColor:s.line,backgroundColor:s.fill,borderWidth:2,borderDash:s.dash,
+   pointBackgroundColor:s.point,pointBorderColor:'#111',pointBorderWidth:1,pointRadius:3,pointHoverRadius:5
+  };
  });
  charts.radar.update('none');
 }
 function updateEventsTimeline(){
  if(!charts.evTimeline)return;
  const byCode={};
- queue.forEach(ev=>{const cat=EV_CAT_OF[ev.event_code];if(!cat)return;(byCode[ev.event_code]=byCode[ev.event_code]||[]).push({x:gAbsMin(ev),y:cat})});
- charts.evTimeline.data.datasets=Object.keys(byCode).map(code=>({label:eventMeta[code].label,data:byCode[code],backgroundColor:EV_DOT_COLORS[code]||'#666',pointRadius:5,pointHoverRadius:7}));
+ queue.forEach(ev=>{
+  const cat=EV_CAT_OF[ev.event_code];
+  if(!cat)return;
+  (byCode[ev.event_code]=byCode[ev.event_code]||[]).push({x:gAbsMin(ev),y:cat});
+ });
+ charts.evTimeline.data.datasets=TIMELINE_CODES.filter(code=>byCode[code]?.length).map(code=>{
+  const s=TIMELINE_STYLE[code]||{label:eventMeta[code]?.label||code,bg:'#FFD400',border:'#111',pointStyle:'circle',rotation:0};
+  return{
+   label:s.label,data:byCode[code],
+   backgroundColor:s.bg,borderColor:s.border,borderWidth:2,
+   pointStyle:s.pointStyle,pointRotation:s.rotation||0,pointRadius:6,pointHoverRadius:8,pointBorderWidth:2
+  };
+ });
  charts.evTimeline.options.scales.x.max=Math.max((session.partMin||20)*2,currentAbsMin());
  charts.evTimeline.update('none');
 }
@@ -589,7 +646,7 @@ document.addEventListener('change',e=>{
  if(e.target.classList.contains('radarChk')){
   const n=+e.target.value;
   if(e.target.checked){
-   if(radarSel.size>=4){e.target.checked=false;toast('Escolhe no máximo 4 jogadores');return}
+   if(radarSel.size>=10){e.target.checked=false;toast('Escolhe no máximo 10 jogadores');return}
    radarSel.add(n);
   }else radarSel.delete(n);
   updateRadar();return;
