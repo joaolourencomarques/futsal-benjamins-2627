@@ -226,7 +226,7 @@ canvas{width:100%!important;height:300px!important}
   <div class="chart-card" style="margin-top:8px"><canvas id="chartRadar"></canvas></div>
 
   <div class="subhead"><strong>Eventos ao longo do tempo</strong></div>
-  <div class="chart-card" style="margin-top:8px;min-height:380px"><canvas id="chartEventsTimeline"></canvas></div>
+  <div class="chart-card" style="margin-top:8px;min-height:460px"><canvas id="chartEventsTimeline"></canvas></div>
 </div>
 
 <footer style="text-align:center;margin:18px 0 10px"><button id="legendBtn" class="btn gray" type="button">Legenda de eventos</button></footer>
@@ -527,29 +527,38 @@ function updTimes(){
 }
 function currentAbsMin(){const pm=session.partMin||20;return session.currentPart===2?pm+Math.floor(partElapsed(2)/60):Math.floor(partElapsed(1)/60)}
 const EV_CATS=['Entradas/Saídas','Golos','Remates','Recuperações/Perdas','Faltas','Defesa do GR','Desconto de tempo / Pausa'];
-const EV_CAT_POS=Object.fromEntries(EV_CATS.map((c,i)=>[c,(EV_CATS.length-1)-i]));
+const EV_CAT_GAP=2.0;
+const EV_CAT_POS=Object.fromEntries(EV_CATS.map((c,i)=>[c,(EV_CATS.length-1-i)*EV_CAT_GAP]));
 const EV_CAT_OF={ENT:'Entradas/Saídas',SAI:'Entradas/Saídas',GOL:'Golos',GOS:'Golos',RAB:'Remates',RFB:'Remates',RSO:'Remates',REC:'Recuperações/Perdas',PER:'Recuperações/Perdas',FCO:'Faltas',FSO:'Faltas',DEF:'Defesa do GR',DT:'Desconto de tempo / Pausa'};
 const TIMELINE_CODES=['ENT','SAI','GOL','GOS','RAB','RFB','RSO','REC','PER','FCO','FSO','DEF','DT'];
-function timelineYOffset(idx){
- if(idx===0)return 0;
- const level=Math.ceil(idx/2);
- const sign=idx%2===1?1:-1;
- return sign*Math.min(0.16*level,0.42);
+
+/* Sublinha preferencial dentro de cada categoria: positivo = acima; negativo = abaixo. */
+const TIMELINE_Y_BASE={
+ ENT:0.36,SAI:-0.36,
+ GOL:0.34,GOS:-0.34,
+ RAB:0.46,RFB:0,RSO:-0.46,
+ REC:0.34,PER:-0.34,
+ FCO:0.34,FSO:-0.34,
+ DEF:0,DT:0
+};
+function duplicateYOffset(idx){
+ const seq=[0,0.14,-0.14,0.28,-0.28,0.42,-0.42];
+ return seq[idx] ?? (idx%2?0.56:-0.56);
 }
 const TIMELINE_STYLE={
  ENT:{label:'Entrada',bg:'#FFD400',border:'#111111',pointStyle:'triangle',rotation:0},
- SAI:{label:'Saída',bg:'#111111',border:'#111111',pointStyle:'rectRot',rotation:0},
+ SAI:{label:'Saída',bg:'#111111',border:'#111111',pointStyle:'triangle',rotation:180},
  GOL:{label:'Golo marcado',bg:'#FFD400',border:'#111111',pointStyle:'circle',rotation:0},
  GOS:{label:'Golo sofrido',bg:'#111111',border:'#111111',pointStyle:'circle',rotation:0},
- RAB:{label:'Remate à baliza',bg:'#FFD400',border:'#111111',pointStyle:'circle',rotation:0},
- RFB:{label:'Remate fora',bg:'#FFFFFF',border:'#111111',pointStyle:'circle',rotation:0},
- RSO:{label:'Remate sofrido',bg:'#111111',border:'#111111',pointStyle:'triangle',rotation:180},
+ RAB:{label:'Remate à baliza',bg:'#FFD400',border:'#111111',pointStyle:'triangle',rotation:90},
+ RFB:{label:'Remate fora',bg:'#FFFFFF',border:'#111111',pointStyle:'crossRot',rotation:0},
+ RSO:{label:'Remate sofrido',bg:'#111111',border:'#111111',pointStyle:'triangle',rotation:270},
  REC:{label:'Recuperação',bg:'#FFD400',border:'#111111',pointStyle:'rectRounded',rotation:0},
  PER:{label:'Perda',bg:'#111111',border:'#111111',pointStyle:'rectRounded',rotation:0},
  FCO:{label:'Falta cometida',bg:'#111111',border:'#111111',pointStyle:'rectRot',rotation:0},
  FSO:{label:'Falta sofrida',bg:'#FFD400',border:'#111111',pointStyle:'rectRot',rotation:0},
  DEF:{label:'Defesa do GR',bg:'#FFD400',border:'#111111',pointStyle:'star',rotation:0},
- DT:{label:'Pausa / desconto de tempo',bg:'#FFFFFF',border:'#111111',pointStyle:'crossRot',rotation:0}
+ DT:{label:'Pausa / desconto de tempo',bg:'#FFFFFF',border:'#111111',pointStyle:'cross',rotation:0}
 };
 const RADAR_STYLES=[
  {line:'#FFD400',fill:'rgba(255,212,0,.12)',point:'#FFD400',dash:[]},
@@ -605,16 +614,25 @@ function initCharts(){
 
  charts.evTimeline=new Chart($('chartEventsTimeline'),{type:'scatter',data:{datasets:[]},
   options:{responsive:true,maintainAspectRatio:false,
+   layout:{padding:{left:8,right:18,top:4,bottom:4}},
    plugins:{
-    legend:{position:'bottom',labels:{usePointStyle:true,boxWidth:10,padding:12,color:'#111',font:{size:10}}},
+    legend:{position:'bottom',labels:{usePointStyle:true,boxWidth:12,padding:14,color:'#111',font:{size:10}}},
     title:{display:true,text:'Eventos ao longo do jogo',color:'#111',font:{size:14,weight:'bold'}},
     tooltip:{callbacks:{label:c=>`${c.dataset.label} — ${c.raw.minute}'`}}
    },
    scales:{
     x:{type:'linear',min:0,title:{display:true,text:'Minuto',color:'#111',font:{weight:'bold'}},ticks:{color:'#111'},grid:{color:'rgba(17,17,17,.08)'}},
-    y:{type:'linear',min:-0.5,max:EV_CATS.length-0.5,
-       ticks:{stepSize:1,color:'#111',font:{size:11,weight:'bold'},callback:v=>Number.isInteger(v)?EV_CATS[(EV_CATS.length-1)-v]:''},
-       grid:{color:'rgba(255,212,0,.28)'}}
+    y:{type:'linear',min:-0.9,max:(EV_CATS.length-1)*EV_CAT_GAP+0.9,
+       ticks:{stepSize:EV_CAT_GAP,autoSkip:false,padding:10,color:'#111',font:{size:11,weight:'bold'},callback:v=>{
+        const idx=Math.round(Number(v)/EV_CAT_GAP);
+        const catIdx=(EV_CATS.length-1)-idx;
+        return Math.abs(Number(v)-idx*EV_CAT_GAP)<0.01 && catIdx>=0 && catIdx<EV_CATS.length ? EV_CATS[catIdx] : '';
+       }},
+       grid:{color:ctx=>{
+        const v=Number(ctx.tick?.value);
+        const q=Math.round(v/EV_CAT_GAP);
+        return Math.abs(v-q*EV_CAT_GAP)<0.01?'rgba(255,212,0,.30)':'rgba(0,0,0,0)';
+       }}}
    }},
   plugins:[halfTimeLinePlugin]});
 }
@@ -662,23 +680,32 @@ function updateRadar(){
 function updateEventsTimeline(){
  if(!charts.evTimeline)return;
  const byCode={};
- const slotUsed={};
+ const sameCodeAtMinute={};
  queue.slice().sort((a,b)=>gAbsMin(a)-gAbsMin(b)).forEach(ev=>{
-  const cat=EV_CAT_OF[ev.event_code];
+  const code=ev.event_code,cat=EV_CAT_OF[code];
   if(!cat)return;
-  const x=gAbsMin(ev);
-  const key=`${cat}|${x}`;
-  const idx=slotUsed[key]||0;
-  slotUsed[key]=idx+1;
-  const y=EV_CAT_POS[cat]+timelineYOffset(idx);
-  (byCode[ev.event_code]=byCode[ev.event_code]||[]).push({x,y,minute:x});
+  const minute=gAbsMin(ev);
+  const key=`${code}|${minute}`;
+  const dup=sameCodeAtMinute[key]||0;
+  sameCodeAtMinute[key]=dup+1;
+
+  const base=TIMELINE_Y_BASE[code]||0;
+  let extra=duplicateYOffset(dup);
+  // Mantém cada tipo na sua metade da linha (ex.: entradas acima, saídas abaixo).
+  if(base>0)extra=Math.max(-0.24,extra);
+  if(base<0)extra=Math.min(0.24,extra);
+  const y=EV_CAT_POS[cat]+base+extra;
+
+  // Em coincidências muito numerosas, um micro-desfasamento horizontal evita nova sobreposição.
+  const x=minute+(dup>6?(dup-6)*0.045:0);
+  (byCode[code]=byCode[code]||[]).push({x,y,minute});
  });
  charts.evTimeline.data.datasets=TIMELINE_CODES.filter(code=>byCode[code]?.length).map(code=>{
   const s=TIMELINE_STYLE[code]||{label:eventMeta[code]?.label||code,bg:'#FFD400',border:'#111',pointStyle:'circle',rotation:0};
   return{
    label:s.label,data:byCode[code],
    backgroundColor:s.bg,borderColor:s.border,borderWidth:2,
-   pointStyle:s.pointStyle,pointRotation:s.rotation||0,pointRadius:6,pointHoverRadius:8,pointBorderWidth:2
+   pointStyle:s.pointStyle,pointRotation:s.rotation||0,pointRadius:7,pointHoverRadius:9,pointBorderWidth:2
   };
  });
  charts.evTimeline.options.scales.x.max=Math.max((session.partMin||20)*2,currentAbsMin());
