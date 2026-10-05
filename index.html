@@ -330,13 +330,25 @@ async function lock(){try{if('wakeLock' in navigator)wl=await navigator.wakeLock
 document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible'&&session.clockRunning)lock()});
 function startPart(p){
  updSess();
- if((partElapsed(p)>0||queue.some(e=>e.part===p))&&!confirm('Esta parte já foi iniciada. Reiniciar o relógio a zero?'))return;
  fixField();
- if(!onField.some(Boolean)&&!confirm('Não há nenhum jogador em campo. Iniciar a parte mesmo assim?'))return;
+
+ // Segurança: uma parte nunca pode começar sem jogadores em campo.
+ if(!onField.some(Boolean)){
+  alert('Não há jogadores em campo. Seleciona pelo menos um atleta antes de iniciar a '+p+'ª parte.');
+  toast('Seleciona jogadores antes de iniciar a '+p+'ª parte');
+  return;
+ }
+
+ if((partElapsed(p)>0||queue.some(e=>e.part===p))&&!confirm('Esta parte já foi iniciada. Reiniciar o relógio a zero?'))return;
  commit();
  const k='part'+p;
- delete session[k+'_ended'];session.currentPart=p;session[k+'_start']=new Date().toISOString();session[k+'_elapsed_offset']=0;session[k+'_running_since']=new Date().toISOString();
- session.clockRunning=true;lock();saveAll();toast(p+'ª Parte iniciada');
+ delete session[k+'_ended'];
+ session.currentPart=p;
+ session[k+'_start']=new Date().toISOString();
+ session[k+'_elapsed_offset']=0;
+ session[k+'_running_since']=new Date().toISOString();
+ session.clockRunning=true;
+ lock();saveAll();toast(p+'ª Parte iniciada');
 }
 function pauseClock(){if(!session.clockRunning)return;commit();saveAll();toast('Relógio pausado')}
 function resumeClock(){
@@ -347,11 +359,26 @@ function resumeClock(){
 function endPart(p){
  if(session.currentPart!==p||session['part'+p+'_ended']||(!session.clockRunning&&!partElapsed(p)))return toast('A '+p+'ª parte não está em curso');
  if(!confirm('Terminar a '+p+'ª parte? Os jogadores em campo serão retirados automaticamente.'))return;
- commit();session['part'+p+'_ended']=true;
+
+ // Congela primeiro o relógio no instante final da parte.
+ commit();
  fixField();
- onField.forEach(en=>{if(en)add(en.number,'SAI')});
- onField=nulls();swapIdx=null;
- saveAll();toast(p+'ª parte terminada — campo limpo');
+
+ // Fecha automaticamente o tempo de todos os atletas que ainda estão em campo.
+ // Os eventos SAI ficam registados no minuto/tempo exato do fim da parte.
+ const leaving=onField.filter(Boolean).map(en=>en.number);
+ leaving.forEach(n=>add(n,'SAI'));
+
+ // Campo sempre vazio entre partes e no fim do jogo.
+ onField=nulls();
+ swapIdx=null;
+ session['part'+p+'_ended']=true;
+ session['part'+p+'_running_since']=null;
+ session.clockRunning=false;
+ session.currentPart=null;
+
+ saveAll();
+ toast(p+'ª parte terminada — jogadores retirados e campo limpo');
 }
 
 /* ---------- Eventos ---------- */
@@ -500,8 +527,15 @@ function updTimes(){
 }
 function currentAbsMin(){const pm=session.partMin||20;return session.currentPart===2?pm+Math.floor(partElapsed(2)/60):Math.floor(partElapsed(1)/60)}
 const EV_CATS=['Entradas/Saídas','Golos','Remates','Recuperações/Perdas','Faltas','Defesa do GR','Desconto de tempo / Pausa'];
+const EV_CAT_POS=Object.fromEntries(EV_CATS.map((c,i)=>[c,(EV_CATS.length-1)-i]));
 const EV_CAT_OF={ENT:'Entradas/Saídas',SAI:'Entradas/Saídas',GOL:'Golos',GOS:'Golos',RAB:'Remates',RFB:'Remates',RSO:'Remates',REC:'Recuperações/Perdas',PER:'Recuperações/Perdas',FCO:'Faltas',FSO:'Faltas',DEF:'Defesa do GR',DT:'Desconto de tempo / Pausa'};
 const TIMELINE_CODES=['ENT','SAI','GOL','GOS','RAB','RFB','RSO','REC','PER','FCO','FSO','DEF','DT'];
+function timelineYOffset(idx){
+ if(idx===0)return 0;
+ const level=Math.ceil(idx/2);
+ const sign=idx%2===1?1:-1;
+ return sign*Math.min(0.16*level,0.42);
+}
 const TIMELINE_STYLE={
  ENT:{label:'Entrada',bg:'#FFD400',border:'#111111',pointStyle:'triangle',rotation:0},
  SAI:{label:'Saída',bg:'#111111',border:'#111111',pointStyle:'rectRot',rotation:0},
@@ -574,11 +608,13 @@ function initCharts(){
    plugins:{
     legend:{position:'bottom',labels:{usePointStyle:true,boxWidth:10,padding:12,color:'#111',font:{size:10}}},
     title:{display:true,text:'Eventos ao longo do jogo',color:'#111',font:{size:14,weight:'bold'}},
-    tooltip:{callbacks:{label:c=>`${c.dataset.label} — ${c.parsed.x}'`}}
+    tooltip:{callbacks:{label:c=>`${c.dataset.label} — ${c.raw.minute}'`}}
    },
    scales:{
     x:{type:'linear',min:0,title:{display:true,text:'Minuto',color:'#111',font:{weight:'bold'}},ticks:{color:'#111'},grid:{color:'rgba(17,17,17,.08)'}},
-    y:{type:'category',labels:EV_CATS,offset:true,ticks:{color:'#111',font:{size:11,weight:'bold'}},grid:{color:'rgba(255,212,0,.28)'}}
+    y:{type:'linear',min:-0.5,max:EV_CATS.length-0.5,
+       ticks:{stepSize:1,color:'#111',font:{size:11,weight:'bold'},callback:v=>Number.isInteger(v)?EV_CATS[(EV_CATS.length-1)-v]:''},
+       grid:{color:'rgba(255,212,0,.28)'}}
    }},
   plugins:[halfTimeLinePlugin]});
 }
@@ -626,10 +662,16 @@ function updateRadar(){
 function updateEventsTimeline(){
  if(!charts.evTimeline)return;
  const byCode={};
- queue.forEach(ev=>{
+ const slotUsed={};
+ queue.slice().sort((a,b)=>gAbsMin(a)-gAbsMin(b)).forEach(ev=>{
   const cat=EV_CAT_OF[ev.event_code];
   if(!cat)return;
-  (byCode[ev.event_code]=byCode[ev.event_code]||[]).push({x:gAbsMin(ev),y:cat});
+  const x=gAbsMin(ev);
+  const key=`${cat}|${x}`;
+  const idx=slotUsed[key]||0;
+  slotUsed[key]=idx+1;
+  const y=EV_CAT_POS[cat]+timelineYOffset(idx);
+  (byCode[ev.event_code]=byCode[ev.event_code]||[]).push({x,y,minute:x});
  });
  charts.evTimeline.data.datasets=TIMELINE_CODES.filter(code=>byCode[code]?.length).map(code=>{
   const s=TIMELINE_STYLE[code]||{label:eventMeta[code]?.label||code,bg:'#FFD400',border:'#111',pointStyle:'circle',rotation:0};
