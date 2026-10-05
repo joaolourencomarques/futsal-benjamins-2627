@@ -175,6 +175,16 @@ canvas{width:100%!important;height:300px!important}
     <div class="chart-card"><canvas id="chartActions"></canvas></div>
     <div class="chart-card" style="grid-column:span 2"><canvas id="chartIntensity"></canvas></div>
   </div>
+
+  <div class="subhead">
+    <strong>Entradas/Saídas (ENT/SAI)</strong>
+    <div class="radio-row">
+      <label><input type="radio" name="entSaiFilter" value="0" checked> Ambas</label>
+      <label><input type="radio" name="entSaiFilter" value="1"> 1ª Parte</label>
+      <label><input type="radio" name="entSaiFilter" value="2"> 2ª Parte</label>
+    </div>
+  </div>
+  <div id="chartEntSaiWrap" class="dyn-chart-wrap" style="margin-top:8px"><canvas id="chartEntSai"></canvas></div>
 </div>
 
 <div class="card">
@@ -205,30 +215,6 @@ canvas{width:100%!important;height:300px!important}
 
 <div class="card">
   <div class="section-title">8. Análise avançada de eventos</div>
-
-  <div class="subhead">
-    <strong>Entradas/Saídas (ENT/SAI)</strong>
-    <div class="radio-row">
-      <label><input type="radio" name="entSaiFilter" value="0" checked> Ambas</label>
-      <label><input type="radio" name="entSaiFilter" value="1"> 1ª Parte</label>
-      <label><input type="radio" name="entSaiFilter" value="2"> 2ª Parte</label>
-    </div>
-  </div>
-  <div class="small" style="margin-top:4px">
-    <span style="display:inline-block;width:12px;height:12px;background:#7fc2ff;border-radius:2px;vertical-align:middle"></span> Parte 1
-    &nbsp; <span style="display:inline-block;width:12px;height:12px;background:#1f6fd1;border-radius:2px;vertical-align:middle"></span> Parte 2
-  </div>
-  <div id="chartEntSaiWrap" class="dyn-chart-wrap" style="margin-top:8px"><canvas id="chartEntSai"></canvas></div>
-
-  <div class="subhead">
-    <strong>Tempo de Jogo por Jogador (empilhado por parte)</strong>
-    <div class="radio-row">
-      <label><input type="radio" name="timeByPartFilter" value="total" checked> Total</label>
-      <label><input type="radio" name="timeByPartFilter" value="1"> 1ª Parte</label>
-      <label><input type="radio" name="timeByPartFilter" value="2"> 2ª Parte</label>
-    </div>
-  </div>
-  <div id="chartTimeByPartWrap" class="dyn-chart-wrap" style="margin-top:8px"><canvas id="chartTimeByPart"></canvas></div>
 
   <div class="subhead">
     <strong>Comparar jogadores (radar) — escolhe até 4</strong>
@@ -516,21 +502,6 @@ const EV_DOT_COLORS={ENT:'#3d85d8',SAI:'#f4a93b',GOL:'#2a9d8f',GOS:'#d62828',RAB
 const RADAR_COLORS=['#1f6fd1','#d62828','#2a9d8f','#8a6d00'];
 let radarSel=new Set();
 
-const totalLabelPlugin={
- id:'totalLabel',
- afterDatasetsDraw(chart){
-  const{ctx,scales:{x}}=chart,metas=chart.data.datasets.map((_,i)=>chart.getDatasetMeta(i));
-  if(!metas.length)return;
-  ctx.save();ctx.fillStyle='#111';ctx.font='bold 11px Inter,Arial,sans-serif';ctx.textBaseline='middle';
-  chart.data.labels.forEach((_,idx)=>{
-   let total=0;chart.data.datasets.forEach(d=>total+=(d.data[idx]||0));
-   const bar=metas[metas.length-1].data[idx];
-   if(!bar||!total)return;
-   ctx.fillText(Math.round(total)+"'",x.getPixelForValue(total)+6,bar.y);
-  });
-  ctx.restore();
- }
-};
 const halfTimeLinePlugin={
  id:'halfTimeLine',
  afterDraw(chart){
@@ -547,20 +518,19 @@ const halfTimeLinePlugin={
 function initCharts(){
  if(typeof Chart==='undefined')return;
  const o=t=>({responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},title:{display:true,text:t}},scales:{y:{beginAtZero:true,ticks:{precision:0}}}});
- charts.min=new Chart($('chartPlayerMinutes'),{type:'bar',data:{labels:[],datasets:[{label:'Minutos',data:[],backgroundColor:'#FFD400',borderColor:'#111',borderWidth:1.5}]},options:o('Tempo em jogo por jogador (min)')});
+ charts.min=new Chart($('chartPlayerMinutes'),{type:'bar',data:{labels:[],datasets:[
+   {label:'1ª Parte',data:[],backgroundColor:'#111',borderColor:'#111',borderWidth:1},
+   {label:'2ª Parte',data:[],backgroundColor:'#FFD400',borderColor:'#111',borderWidth:1}
+  ]},options:{responsive:true,maintainAspectRatio:false,
+   plugins:{legend:{display:true,position:'top'},title:{display:true,text:'Tempo em jogo por jogador (min)'}},
+   scales:{x:{stacked:true},y:{stacked:true,beginAtZero:true,ticks:{precision:0}}}}});
  charts.act=new Chart($('chartActions'),{type:'bar',data:{labels:['Golos','Remates AB','Remates F','Recup.','Perdas','Assist.','F.Cometidas','F.Sofridas','Defesas GR'],datasets:[{label:'Totais',data:[],backgroundColor:'#111'}]},options:o('Principais estatísticas do jogo')});
  const oi=o('Intensidade Ofensiva (GOL, RAB, RFB) vs Defensiva (DEF, RSO, GOS)');oi.plugins.legend.display=true;
  charts.int=new Chart($('chartIntensity'),{type:'line',data:{labels:[],datasets:[{label:'Ofensiva',data:[],tension:.25,borderColor:'#111',backgroundColor:'#111'},{label:'Defensiva',data:[],tension:.25,borderColor:'#f2b800',backgroundColor:'#f2b800',borderWidth:3}]},options:oi});
 
  charts.entsai=new Chart($('chartEntSai'),{type:'bar',data:{labels:[],datasets:[]},options:{indexAxis:'y',responsive:true,maintainAspectRatio:false,
   plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>{const v=c.raw;return Array.isArray(v)?`${v[0]}' – ${v[1]}'`:''}}}},
-  scales:{x:{min:0,title:{display:true,text:'Minuto'}},y:{stacked:true}}}});
-
- charts.timeByPart=new Chart($('chartTimeByPart'),{type:'bar',data:{labels:[],datasets:[]},options:{indexAxis:'y',responsive:true,maintainAspectRatio:false,
-  layout:{padding:{right:40}},
-  plugins:{legend:{display:true,position:'top'}},
-  scales:{x:{stacked:true,beginAtZero:true,title:{display:true,text:'Minutos'}},y:{stacked:true}}},
-  plugins:[totalLabelPlugin]});
+  scales:{x:{min:0,title:{display:true,text:'Minuto'}},y:{stacked:true,ticks:{font:{size:10}}}}}});
 
  charts.radar=new Chart($('chartRadar'),{type:'radar',data:{labels:['Golos','Assist.','RAB','RFB','REC','PER','FCO','FSO','DEF'],datasets:[]},
   options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:true}},scales:{r:{beginAtZero:true,ticks:{precision:0}}}}});
@@ -588,28 +558,15 @@ function updateEntSai(){
  for(let i=0;i<maxStints;i++){
   datasets.push({
    data:raw.map(l=>{const s=l[i];if(!s)return null;return filter?[s.startRel,s.endRel]:[s.startAbs,s.endAbs]}),
-   backgroundColor:raw.map(l=>{const s=l[i];return s?(s.part===1?'#7fc2ff':'#1f6fd1'):'transparent'}),
-   borderSkipped:false,borderRadius:3,barPercentage:.85,categoryPercentage:.78
+   backgroundColor:'#FFD400',borderColor:'#111',borderWidth:1,
+   borderSkipped:false,borderRadius:2,barPercentage:.9,categoryPercentage:.92
   });
  }
  charts.entsai.data.labels=players.map(p=>p.number+' '+p.name);
  charts.entsai.data.datasets=datasets.length?datasets:[{data:players.map(()=>null)}];
  charts.entsai.options.scales.x.max=filter?(session.partMin||20):undefined;
- $('chartEntSaiWrap').style.height=Math.max(220,60+players.length*42)+'px';
+ $('chartEntSaiWrap').style.height=Math.max(140,22+players.length*24)+'px';
  charts.entsai.resize();charts.entsai.update('none');
-}
-function updateTimeByPart(){
- if(!charts.timeByPart)return;
- const sel=document.querySelector('input[name=timeByPartFilter]:checked'),mode=sel?sel.value:'total';
- const rows=called().map(p=>({name:p.number+' '+p.name,p1:playSecByPart(p.number,1)/60,p2:playSecByPart(p.number,2)/60}));
- let sorted,datasets;
- if(mode==='1'){sorted=rows.slice().sort((a,b)=>b.p1-a.p1);datasets=[{label:'1ª Parte',data:sorted.map(r=>+r.p1.toFixed(1)),backgroundColor:'#1f3f7a'}];}
- else if(mode==='2'){sorted=rows.slice().sort((a,b)=>b.p2-a.p2);datasets=[{label:'2ª Parte',data:sorted.map(r=>+r.p2.toFixed(1)),backgroundColor:'#7fb3ff'}];}
- else{sorted=rows.slice().sort((a,b)=>(b.p1+b.p2)-(a.p1+a.p2));datasets=[{label:'1ª Parte',data:sorted.map(r=>+r.p1.toFixed(1)),backgroundColor:'#1f3f7a'},{label:'2ª Parte',data:sorted.map(r=>+r.p2.toFixed(1)),backgroundColor:'#7fb3ff'}];}
- charts.timeByPart.data.labels=sorted.map(r=>r.name);
- charts.timeByPart.data.datasets=datasets;
- $('chartTimeByPartWrap').style.height=Math.max(220,50+sorted.length*34)+'px';
- charts.timeByPart.resize();charts.timeByPart.update('none');
 }
 function updateRadar(){
  if(!charts.radar)return;
@@ -638,17 +595,18 @@ document.addEventListener('change',e=>{
   updateRadar();return;
  }
  if(e.target.name==='entSaiFilter')return updateEntSai();
- if(e.target.name==='timeByPartFilter')return updateTimeByPart();
 });
 function renderCharts(){
  if(!charts.min)return;
  const st=playerStats(),pm=session.partMin||20,abs=e=>(e.part===2?pm:0)+Number(e.minute||0);
- charts.min.data.labels=st.map(s=>s.number+' '+s.name);charts.min.data.datasets[0].data=st.map(s=>+(s.sec/60).toFixed(1));
+ charts.min.data.labels=st.map(s=>s.number+' '+s.name);
+ charts.min.data.datasets[0].data=st.map(s=>+(playSecByPart(s.number,1)/60).toFixed(1));
+ charts.min.data.datasets[1].data=st.map(s=>+(playSecByPart(s.number,2)/60).toFixed(1));
  charts.act.data.datasets[0].data=['GOL','RAB','RFB','REC','PER','ASS','FCO','FSO','DEF'].map(totalOf);
  const mx=Math.max(currentAbsMin(),...queue.map(abs),1),off=new Array(mx+1).fill(0),def=new Array(mx+1).fill(0);
  queue.forEach(e=>{const m=abs(e);if(['GOL','RAB','RFB'].includes(e.event_code))off[m]++;if(['DEF','RSO','GOS'].includes(e.event_code))def[m]++});
  charts.int.data.labels=off.map((_,i)=>i+"'");charts.int.data.datasets[0].data=off;charts.int.data.datasets[1].data=def;
- updateEntSai();updateTimeByPart();updateRadar();updateEventsTimeline();
+ updateEntSai();updateRadar();updateEventsTimeline();
  Object.values(charts).forEach(c=>c.update('none'));
  lastMin=currentAbsMin();lastQ=queue.length;
 }
