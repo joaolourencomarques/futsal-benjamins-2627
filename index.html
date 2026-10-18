@@ -12,6 +12,13 @@ h1{font-size:clamp(22px,4.2vw,38px);margin:0;letter-spacing:.2px;line-height:1.1
 .card{background:var(--card);padding:14px;border-radius:8px;border:1px solid var(--line);border-top:4px solid var(--y);box-shadow:0 1px 3px rgba(0,0,0,.08);margin-bottom:12px}
 .section-title{font-size:15px;font-weight:800;margin-bottom:8px}
 label{font-weight:700}
+.infoRow{display:grid;grid-template-columns:minmax(120px,1.6fr) 140px 104px 82px minmax(90px,1.1fr) minmax(90px,1.1fr) 84px minmax(100px,1fr) 118px;gap:8px;margin-top:8px;align-items:center}
+.infoRow>*{min-width:0;width:100%;box-sizing:border-box}
+.durBox{display:flex;align-items:center;gap:4px;border:1px solid #bdb48a;border-radius:6px;padding:0 8px;background:#fff;font-size:13px;font-weight:400;color:#4a4a4a;height:100%;white-space:nowrap}
+.durBox input{border:none;width:2.2em;padding:8px 0;text-align:right;font-weight:700;color:#111;background:transparent;-moz-appearance:textfield}
+.durBox input:focus{outline:none}.durBox:focus-within{outline:2px solid #FFD400}
+@media(max-width:1100px){.infoRow{grid-template-columns:repeat(auto-fill,minmax(150px,1fr))}}
+
 input,select,button{padding:8px;border-radius:6px;border:1px solid #bdb48a;font-size:15px}
 .row,.manual-row{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:8px}
 .players{display:flex;flex-wrap:wrap;gap:8px;margin-top:8px}
@@ -135,16 +142,16 @@ canvas{width:100%!important;height:300px!important}
 
 <div class="card">
   <div class="section-title">2. Informação do jogo</div>
-  <div class="row">
-    <input id="opponent" title="Nome da equipa adversária" placeholder="Equipa adversária" style="width:200px">
-    <input id="date" type="date">
-    <input id="time" type="time">
+  <div class="infoRow">
+    <input id="opponent" title="Nome da equipa adversária" placeholder="Equipa adversária">
+    <input id="date" type="date" title="Data do jogo">
+    <input id="time" type="time" title="Hora do jogo">
     <select id="homeAway" title="Jogamos em casa ou fora: define a ordem do resultado (equipa da casa primeiro)"><option value="casa">Casa</option><option value="fora">Fora</option></select>
-    <input id="location" placeholder="Local" style="width:200px">
-    <input id="competition" placeholder="Competição">
-    <input id="round" placeholder="Jornada" style="width:90px">
-    <input id="recorder" placeholder="Registado por" title="Quem regista este jogo (fica gravado no ficheiro do jogo)" style="width:150px">
-    <label class="small" title="Duração de cada parte, usada nas escalas dos gráficos">Duração da parte (min) <input id="partMin" type="number" min="1" max="60" value="25" style="width:70px"></label>
+    <input id="location" placeholder="Local" title="Pavilhão / local do jogo">
+    <input id="competition" placeholder="Competição" title="Competição">
+    <input id="round" placeholder="Jornada" title="Jornada">
+    <input id="recorder" placeholder="Registado por" title="Quem regista este jogo (fica gravado no ficheiro do jogo)">
+    <label class="durBox" title="Duração de cada parte em minutos (por defeito 25). A 2ª parte começa neste minuto nos gráficos">Parte <input id="partMin" type="number" min="1" max="60" value="25"> min</label>
   </div>
 </div>
 
@@ -278,7 +285,7 @@ canvas{width:100%!important;height:300px!important}
 
 <script>
 /* ===== ÚNICA LINHA A ALTERAR PARA OUTRO ESCALÃO ===== */
-const ESCALAO='Benjamins 2026/27';
+const ESCALAO='Benjamins B 2026/27';
 const $=id=>document.getElementById(id);
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const pad=n=>String(n).padStart(2,'0');
@@ -1563,7 +1570,7 @@ function buildMapFilter(){
  const chk=OPTS.mapCodes;
  $('mapFilter').innerHTML=`<div class="small"><strong>Mostrar no mapa</strong></div>
   <div class="row" style="margin-top:4px;gap:12px">${MAP_TYPES.map(([c,l])=>`<label class="small" title="${l}" style="font-weight:400;display:flex;gap:4px;align-items:center;white-space:nowrap"><input type="checkbox" data-mc="${c}" ${chk.includes(c)?'checked':''}> <strong>${c}</strong></label>`).join('')}</div>
-  <div class="row" style="margin-top:6px;flex-wrap:nowrap">
+  <div class="row" style="margin-top:6px">
    <label class="small" title="Pontos, calor ofensivo (amarelo), calor defensivo (preto) ou os dois em simultâneo" style="font-weight:400;display:flex;gap:4px;align-items:center;white-space:nowrap">Vista <select id="mapViewSel" style="padding:4px"><option value="pts">Pontos</option><option value="off">Calor ofensivo</option><option value="def">Calor defensivo</option><option value="both">Calor ofensivo + defensivo</option></select></label>
    <label class="small" title="Filtra o mapa por parte" style="font-weight:400;display:flex;gap:4px;align-items:center;white-space:nowrap">Parte <select id="mapPartSel" style="padding:4px"><option value="0">Ambas</option><option value="1">1ª</option><option value="2">2ª</option></select></label>
    <label class="small" title="Filtra o mapa por jogador (Equipa = ações sem jogador)" style="font-weight:400;display:flex;gap:4px;align-items:center;flex:1;min-width:0">Jogador <select id="mapPlayerSel" style="padding:4px;flex:1;min-width:0;max-width:100%"><option value="">Todos</option><option value="team">Equipa</option></select></label>
