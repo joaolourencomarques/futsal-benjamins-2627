@@ -270,7 +270,7 @@ canvas{width:100%!important;height:300px!important}
 
 <script>
 /* ===== ÚNICA LINHA A ALTERAR PARA OUTRO ESCALÃO ===== */
-const ESCALAO='Benjamins 2026/27';
+const ESCALAO='Benjamins2026/27';
 const $=id=>document.getElementById(id);
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const pad=n=>String(n).padStart(2,'0');
@@ -653,9 +653,11 @@ function graphBucket(ev){
 function updateGraphLimitNote(){
  const el=$('graphTimeNote');if(!el)return;
  const n=graphPeriodMinutes();
- const t='Escala gráfica: '+n+' min por parte / '+(2*n)+' min no total. O tempo adicional é concentrado no último minuto de cada parte.';
+ const t='Tempo em jogo e Entradas/Saídas: escala fixa de '+n+' min por parte (a 2ª parte começa sempre aos '+n+' min; o tempo adicional fica no último minuto de cada parte). Intensidade e Eventos ao longo do tempo: tempo real em que as ações aconteceram.';
  el.title=t;
- ['chartPlayerMinutes','chartIntensity','chartEntSai','chartEventsTimeline'].forEach(id=>{const c=$(id);if(c)c.title=t});
+ ['chartPlayerMinutes','chartEntSai'].forEach(id=>{const c=$(id);if(c)c.title=t});
+ const r='Tempo real: a 2ª parte começa quando acabou a 1ª ('+mmss(partElapsed(1))+').';
+ ['chartIntensity','chartEventsTimeline'].forEach(id=>{const c=$(id);if(c)c.title=r});
 }
 
 const EV_CATS=['Entradas/Saídas','Golos','Remates','Recuperações/Perdas','Faltas','Defesa do GR','Desconto de tempo / Pausa'];
@@ -706,11 +708,14 @@ const RADAR_STYLES=[
 ];
 let radarSel=new Set();
 
+// tempo real desde o início do jogo: a 2ª parte começa no fim real da 1ª
+const realSec=ev=>(eventPart(ev)===2?partElapsed(1):0)+eventSecond(ev);
+const realTotalMin=()=>Math.max(2*graphPeriodMinutes(),Math.ceil((partElapsed(1)+partElapsed(2))/60));
 const halfTimeLinePlugin={
  id:'halfTimeLine',
  afterDraw(chart){
   if(!session.part1_ended&&!session.part2_start)return;
-   const{ctx,chartArea:{top,bottom},scales:{x}}=chart,pm=graphPeriodMinutes();
+   const{ctx,chartArea:{top,bottom},scales:{x}}=chart,pm=chart.$half!=null?chart.$half:graphPeriodMinutes();
   const xp=x.getPixelForValue(pm);
   ctx.save();ctx.strokeStyle='#111';ctx.lineWidth=2;ctx.setLineDash([5,4]);ctx.beginPath();ctx.moveTo(xp,top);ctx.lineTo(xp,bottom);ctx.stroke();ctx.setLineDash([]);
   ctx.fillStyle='#111';ctx.font='11px Inter,Arial,sans-serif';ctx.textAlign='center';ctx.textBaseline='top';
@@ -731,7 +736,7 @@ function initCharts(){
    scales:{x:{stacked:true},y:{stacked:true,beginAtZero:true,ticks:{precision:0}}}}});
  charts.act=new Chart($('chartActions'),{type:'bar',data:{labels:['Golos','Remates AB','Remates F','Recup.','Perdas','Assist.','F.Cometidas','F.Sofridas','Defesas GR'],datasets:[{label:'Totais',data:[],backgroundColor:'#111'}]},options:o('Principais estatísticas do jogo')});
  const oi=o('Intensidade Ofensiva (GOL, RAB, RFB) vs Defensiva (DEF, RSO, GOS)');oi.plugins.legend.display=true;oi.scales.x={ticks:{maxTicksLimit:11}};
- charts.int=new Chart($('chartIntensity'),{type:'line',data:{labels:[],datasets:[{label:'Ofensiva (Beira-Mar)',data:[],tension:.25,borderColor:'#E0A000',backgroundColor:'#E0A000',borderWidth:3},{label:'Defensiva (adversário)',data:[],tension:.25,borderColor:'#111',backgroundColor:'#111'}]},options:oi});
+ charts.int=new Chart($('chartIntensity'),{type:'line',data:{labels:[],datasets:[{label:'Ofensiva (Beira-Mar)',data:[],tension:.25,borderColor:'#E0A000',backgroundColor:'#E0A000',borderWidth:3},{label:'Defensiva (adversário)',data:[],tension:.25,borderColor:'#111',backgroundColor:'#111'}]},options:oi,plugins:[halfTimeLinePlugin]});
 
  charts.entsai=new Chart($('chartEntSai'),{type:'bar',data:{labels:[],datasets:[]},options:{indexAxis:'y',responsive:true,maintainAspectRatio:false,
   plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>{const v=c.raw;return Array.isArray(v)?`${v[0]}' – ${v[1]}'`:''}}}},
@@ -827,13 +832,13 @@ function updateRadar(){
 }
 function updateEventsTimeline(){
  if(!charts.evTimeline)return;
- const limit=graphPeriodMinutes(),byCode={},sameCodeAtMinute={};
+ const byCode={},sameCodeAtMinute={},total=realTotalMin();
  queue.slice().sort((a,b)=>gAbsMin(a)-gAbsMin(b)).forEach(ev=>{
   const code=ev.event_code,cat=EV_CAT_OF[code];
   if(!cat)return;
   const part=eventPart(ev),seconds=eventSecond(ev,part);
-  const plotted=graphEventMinute(ev);
-  const key=code+'|'+Math.floor(Math.min(part*limit-1e-8,plotted));
+  const plotted=realSec(ev)/60;
+  const key=code+'|'+Math.floor(plotted);
   const dup=sameCodeAtMinute[key]||0;
   sameCodeAtMinute[key]=dup+1;
   const base=TIMELINE_Y_BASE[code]||0;
@@ -841,8 +846,7 @@ function updateEventsTimeline(){
   if(base>0)extra=Math.max(-0.24,extra);
   if(base<0)extra=Math.min(0.24,extra);
   const y=EV_CAT_POS[cat]+base+extra;
-  // Avoid horizontal markers leaking beyond 25/50 when many coincide.
-  const x=Math.min(part*limit,plotted+(dup>6?(dup-6)*0.008:0));
+  const x=Math.min(total,plotted+(dup>6?(dup-6)*0.008:0));
   (byCode[code]=byCode[code]||[]).push({x,y,part,seconds});
  });
  charts.evTimeline.data.datasets=TIMELINE_CODES.filter(code=>byCode[code]?.length).map(code=>{
@@ -851,11 +855,11 @@ function updateEventsTimeline(){
    borderWidth:2,pointStyle:st.pointStyle,pointRotation:st.rotation||0,
    pointRadius:7,pointHoverRadius:9,pointBorderWidth:2};
  });
- charts.evTimeline.options.scales.x.max=2*limit;
+ charts.evTimeline.options.scales.x.max=total;
+ charts.evTimeline.$half=partElapsed(1)/60;
  charts.evTimeline.options.plugins.tooltip.callbacks.label=c=>{
   const d=c.raw;
-  return c.dataset.label+' - '+d.part+'\u00aa parte, '+fmt(d.seconds)+
-    (d.seconds>limit*60?' (acumulado no último minuto gráfico)':'');
+  return c.dataset.label+' - '+d.part+'\u00aa parte, '+fmt(d.seconds);
  };
  charts.evTimeline.update('none');
 }
@@ -888,18 +892,19 @@ function refreshTimeCharts(){
 function renderCharts(){
  if(!charts.min)return;
  refreshTimeCharts();
- const limit=graphPeriodMinutes(),total=2*limit;
+ const total=realTotalMin();
  const attack=new Array(total).fill(0),defense=new Array(total).fill(0);
  charts.act.data.datasets[0].data=['GOL','RAB','RFB','REC','PER','ASS','FCO','FSO','DEF'].map(totalOf);
- // Every event past the cap remains counted, but in minute 25 or 50.
+ // cada ação conta no minuto real em que aconteceu (sem comprimir o tempo adicional)
  queue.forEach(ev=>{
-  const i=graphBucket(ev);
+  const i=Math.min(total-1,Math.floor(realSec(ev)/60));
   if(['GOL','RAB','RFB'].includes(ev.event_code))attack[i]++;
   if(['DEF','RSO','GOS'].includes(ev.event_code))defense[i]++;
  });
  charts.int.data.labels=attack.map((_,i)=>(i+1)+"'");
  charts.int.data.datasets[0].data=attack;
  charts.int.data.datasets[1].data=defense;
+ charts.int.$half=partElapsed(1)/60-.5;
  updateRadar();updateEventsTimeline();
  [charts.act,charts.int].forEach(c=>c?.update('none'));
  lastMin=currentAbsMin();lastQ=queue.length;
@@ -943,7 +948,7 @@ const GUIDE=[
   ['Resumo do jogo','Golos marcados e sofridos por forma, e remates com local. Só aparece quando há perguntas de local/forma ligadas nas opções de registo ou golos/remates com local ou forma já registados.'],
   ['Mapa do campo','Escolhe o que mostrar (GOL, GOS, RAB, RFB, RSO, DEF), a parte e o jogador. Em <strong>Vista</strong>: pontos, calor ofensivo (amarelo), calor defensivo (preto) ou os dois.'],
   ['Estatísticas por jogador','Tempo em jogo, golos, assistências, remates, <strong>eficácia</strong> (golos ÷ remates), recuperações, perdas e faltas. <strong>Env. of.</strong> (GOL, ASS, RAB, RFB, FSO, PER), <strong>Env. def.</strong> (REC, FCO) e <strong>Env. total</strong> contam a participação do jogador nas ações; a % ao lado é a fatia das ações da equipa em que participou enquanto esteve em campo. O <strong>Índice</strong> mede o valor das ações (golo +3, assistência +2, remate à baliza e recuperação +1, falta sofrida e remate fora +0,5, perda −1, falta cometida −0,5); os pesos mudam-se em ⚙ Opções de registo. Em <strong>Por 40 min</strong> os valores ficam comparáveis entre quem jogou pouco e muito.'],
-  ['Gráficos','Tempo por jogador, principais ações, intensidade ofensiva vs defensiva, entradas e saídas, radar para comparar jogadores e eventos ao longo do tempo. O ⓘ por baixo dos gráficos explica a escala de tempo.'],
+  ['Gráficos','Tempo por jogador, principais ações, intensidade ofensiva vs defensiva, entradas e saídas, radar para comparar jogadores e eventos ao longo do tempo. Tempo em jogo e Entradas/Saídas usam uma escala fixa (a 2ª parte começa sempre aos 25 min); Intensidade e Eventos ao longo do tempo mostram o tempo real em que as ações aconteceram. O ⓘ por baixo dos gráficos explica.'],
   ['Exportar','<strong>Exportar estatísticas CSV</strong> e <strong>Exportar Eventos CSV</strong> (escolhes os tipos de eventos e a parte). Abre no Excel.']]],
  ['4. Complementar','Útil, mas opcional.',[
   ['Registo de outros eventos','Secção 6: avaliações (posicionamento, atitude, intensidade…) e notas, para um jogador ou para a equipa.'],
